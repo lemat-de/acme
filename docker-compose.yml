@@ -1,0 +1,45 @@
+version: '2.4'
+
+services:
+  haproxy:
+    image: haproxy:alpine
+    restart: always
+    ports:
+      - 10443:443/tcp
+      - 10080:80/tcp
+    volumes:
+      - ./haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      - ./haproxy/errorfile.http:/usr/local/etc/haproxy/errorfile.http
+      - letsencrypt:/letsencrypt:ro
+      - haproxy-socket:/run/haproxy
+    networks:
+      default:
+      webserver:
+        aliases:
+          - haproxy
+    depends_on:
+      - acme
+
+  acme:
+    image: acme
+    restart: always
+    volumes:
+      - letsencrypt:/letsencrypt
+      - haproxy-socket:/run/haproxy
+    environment:
+      - MAIL=mail@example.com
+      - DOMAINS=foobar.com
+      - WILDCARD_DOMAINS=example.com example.org
+      - ACME_STAGING=true
+      - OCSP_STAPLING=true
+    env_file:
+      - .env
+
+networks:
+  default:
+  webserver:
+    external: true
+
+volumes:
+  letsencrypt:
+  haproxy-socket:
