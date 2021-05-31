@@ -5,11 +5,11 @@ services:
     image: haproxy:alpine
     restart: always
     ports:
-      - 10443:443/tcp
-      - 10080:80/tcp
+      - 443:10443/tcp
+      - 80:10080/tcp
     volumes:
       - ./haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
-      - ./haproxy/errorfile.http:/usr/local/etc/haproxy/errorfile.http
+      - ./haproxy/errorfile.http:/usr/local/etc/haproxy/errorfile.http:ro
       - letsencrypt:/letsencrypt:ro
       - haproxy-socket:/run/haproxy
     networks:
@@ -21,7 +21,8 @@ services:
       - acme
 
   acme:
-    image: acme
+    container_name: acme-haproxy
+    build: .
     restart: always
     volumes:
       - letsencrypt:/letsencrypt
@@ -42,4 +43,5 @@ networks:
 
 volumes:
   letsencrypt:
+    external: true
   haproxy-socket:
