@@ -56,6 +56,13 @@ while true; do
     cp "${ACME_DIR}/bin/${CERT_NAME}_ecc/ca.cer" "${CERT_DIR}/${CERT_NAME}.ca"
     cp "${ACME_DIR}/bin/${CERT_NAME}_ecc/${CERT_NAME}.key" "${CERT_DIR}/${CERT_NAME}.key"
 
+    # Update the certifiacte in haproxy
+    echo -e "set ssl cert ${CERT_DIR}/fullchain.pem <<\n$(cat ${CERT_DIR}/${CERT_NAME}.crt)\n" | socat /run/haproxy/admin.sock - \
+    || echo "Couldn't push certificate into haproxy." \
+    && echo "The socket is probably not available." \
+    && echo "Trying again tomorrow."
+
+
     if [[ $OCSP_STAPLING = true ]]; then
         # The OCSP stapling code is based on this blogpost https://icicimov.github.io/blog/server/HAProxy-OCSP-stapling/ from Igor Cicimov
 
@@ -68,15 +75,15 @@ while true; do
         wget -q -O- $ISSUER_URI | openssl x509 -inform DER -outform PEM -out ${CERT_DIR}/${ISSUER_NAME}.pem
 
         # Get the OCSP URL from the certificate
-        ocsp_url=$(openssl x509 -noout -ocsp_uri -in ${CERT})
+        OCSP_URL=$(openssl x509 -noout -ocsp_uri -in ${CERT})
 
         # Extract the hostname from the OCSP URL
-        ocsp_host=$(echo $ocsp_url | cut -d/ -f3)
+        OCSP_HOST=$(echo $OCSP_URL | cut -d/ -f3)
 
         # Create/update the ocsp response file and update HAProxy
-        openssl ocsp -noverify -no_nonce -issuer ${CERT_DIR}/${ISSUER_NAME}.pem -cert ${CERT} -url $ocsp_url -header Host $ocsp_host -respout ${CERT}.ocsp
+        openssl ocsp -noverify -no_nonce -issuer ${CERT_DIR}/${ISSUER_NAME}.pem -cert ${CERT} -url $OCSP_URL -header Host $OCSP_HOST -respout ${CERT}.ocsp
         [[ $? -eq 0 ]] && [[ $(pidof haproxy) ]] && [[ -s ${CERT}.ocsp ]] \
-        && echo "set ssl ocsp-response $(base64 -w 10000 ${CERT}.ocsp)" | socat stdio unix-connect:/run/haproxy/admin.sock
+        && echo "set ssl ocsp-response $(base64 -w 10000 ${CERT}.ocsp)" | socat stdio /run/haproxy/admin.sock
     fi
 
     # sleep for a day to check again next day
